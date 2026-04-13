@@ -1,143 +1,101 @@
 const { Telegraf } = require('telegraf');
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
+const express = require('express');
 
-// 1. CONFIG - BDL HAD L’VALUES
-const BOT_TOKEN = '8395509532:AAF07WSkCDxrf4_r1y7oxvoWMciE54bep1g';
-const GROQ_API_KEY = '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';
-const SUPABASE_URL = 'https://ahjxmqcokxnqtzkcljri.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFoanhtcWNva3hucXR6a2NsanJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwMjUwMTYsImV4cCI6MjA5MTYwMTAxNn0.szaq4Yd6EtI4OEsqdomNHR9MC1klsFI8TSlykLSZpM8';
-const DAILY_FREE_LIMIT = 3; // 3 recettes fabor par nhar
+// 1. CONFIG - KEYS DYAWLK
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 const bot = new Telegraf(BOT_TOKEN);
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 2. L’PROMPT LI YKHDEM MZN - HADA HWA SIRR
-const RECIPE_PROMPT = `
-Nta chef DZ professionnel. 3tik transcript wla caption dyal video TikTok.
-Khrej liya JSON SEULEMENT, bla commentaire. Format:
-{
-  "title": "Smiya dyal recette b Darija",
-  "ingredients": [{"name": "smiya", "qty": "1", "unit": "kas"}],
-  "steps": ["1. dir...", "2. zid..."],
-  "time": "30 min",
-  "servings": "4 nnas",
-  "notes": "nassi7a sghera"
-}
-Qawa3id:
-1. Ila ma kaynach quantité, deviner b estimation ta3 chef DZ.
-2. Bdl "cup" l "kas", "tablespoon" l "m3il9a kbira", "teaspoon" l "m3il9a sghira".
-3. Ila video ma fihach makla, rad {"error": "Hadi machi recette"}
-Text: `;
+// 2. EXPRESS SERVER BACH RENDER YFR7
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('TikiTbib Bot is running!'));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-// 3. FUNCTIONS
-async function getTikTokCaption(url) {
-  try {
-    // Nsta3ml api gratuit bach njbd caption
-    const apiUrl = `https://www.tikwm.com/api/?url=${url}`;
-    const res = await axios.get(apiUrl);
-    return res.data.data.title + " " + res.data.data.desc;
-  } catch (e) {
-    return null;
-  }
-}
+// 3. MESSAGES
+const MSG_WELCOME = `Salam 👋 Ana TikiTbib!
+Siftli lien ta3 video makla mn TikTok wla Instagram, n3tik Recette S7i7a 🥗
+3ndk 3 free / nhar. Bghiti illimité? /premium`;
 
-async function askGroq(text) {
-  const res = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-    model: "llama-3.1-70b-versatile",
-    messages: [{ role: "user", content: RECIPE_PROMPT + text }],
-    temperature: 0.2,
-    response_format: { type: "json_object" }
-  }, {
-    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` }
-  });
-  return JSON.parse(res.data.choices[0].message.content);
-}
+const MSG_LIMIT = `Kmlt 3 free dyal lyum 😅
+Premium = 500da / chhar brk → /premium`;
 
-async function checkUserLimit(userId) {
+const MSG_PREMIUM = `🔥 TikiTbib Premium - 500da / chhar
+✅ Recettes illimité
+✅ Calories + Macros + Alternative s7i7a
+
+Khlss f CCP: 123456789 CLÉ 12 Wail Benali
+Ba3d ma tkhlss, sift screenshot hna. Nactivik f 5 min.`;
+
+// 4. LOGIC TA3 LIMIT
+async function checkLimit(userId) {
   const today = new Date().toISOString().split('T')[0];
-  let { data } = await supabase.from('users').select().eq('id', userId).single();
+  let { data: user } = await supabase.from('users').select('*').eq('id', userId).single();
 
-  if (!data) {
-    await supabase.from('users').insert({ id: userId, count: 0, last_date: today, premium: false });
-    return { allowed: true, left: DAILY_FREE_LIMIT };
+  if (!user) {
+    await supabase.from('users').insert({ id: userId, count: 0, last_date: today });
+    return true;
   }
 
-  if (data.premium) return { allowed: true, left: 999 };
+  if (user.premium) return true;
 
-  if (data.last_date!== today) {
+  if (user.last_date!== today) {
     await supabase.from('users').update({ count: 0, last_date: today }).eq('id', userId);
-    data.count = 0;
+    return true;
   }
 
-  if (data.count >= DAILY_FREE_LIMIT) return { allowed: false, left: 0 };
-
-  return { allowed: true, left: DAILY_FREE_LIMIT - data.count };
+  return user.count < 3;
 }
 
-async function incrementCount(userId) {
-  await supabase.rpc('increment', { row_id: userId });
-}
+// 5. COMMANDS
+bot.start((ctx) => ctx.reply(MSG_WELCOME));
+bot.command('premium', (ctx) => ctx.reply(MSG_PREMIUM));
 
-// 4. BOT LOGIC
-bot.start((ctx) => {
-  ctx.reply(`Salam ${ctx.from.first_name} 👋\nAna TikiTbib. Sift liya lien TikTok dyal ay makla o nradha lik recette maktouba b Darija.\n\n3ndk ${DAILY_FREE_LIMIT} recettes fabor kol nhar.\n\nBach twlli illimité: /premium`);
-});
-
-bot.command('premium', (ctx) => {
-  ctx.reply(`Premium = 1000 DA/chhar\n1. Khlls f CCP: 12345678 Clé 90\n2. Sift screenshot ta3 reçu hna\n3. Nactivé lik f 5 min\n\nWla khlls b BaridiMob m3a Chargily: https://pay.chargily.com/test`);
-});
-
+// 6. VIDEO HANDLER
 bot.on('text', async (ctx) => {
   const url = ctx.message.text;
   const userId = ctx.from.id;
 
-  if (!url.includes('tiktok.com')) return ctx.reply('Sift liya ghi lien TikTok s7i7');
+  if (!url.includes('tiktok.com') &&!url.includes('instagram.com')) {
+    return ctx.reply('Siftli lien ta3 TikTok wla Instagram brk 🙏');
+  }
 
-  const limit = await checkUserLimit(userId);
-  if (!limit.allowed) return ctx.reply(`Kmmlt l’gratuits dyal lyoum 😢\nDir /premium bach twlli illimité b 1000 DA/chhar`);
+  const canUse = await checkLimit(userId);
+  if (!canUse) return ctx.reply(MSG_LIMIT);
 
-  const msg = await ctx.reply('Sana chwiya... nkhdem lik f recette 🍳');
+  ctx.reply('Sana n7dr lik recette... 10s ⏳');
 
   try {
-    const caption = await getTikTokCaption(url);
-    if (!caption) throw 'Ma 9drtch njbd video';
+    const groqRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+      model: 'llama-3.1-8b-instant',
+      messages: [{
+        role: 'user',
+        content: `Hada lien ta3 video makla: ${url}. Mdli recette s7i7a b darja dziriya. 1. Ingrédients 2. Tariqa 3. Calories. Ghir 1000 DA l'ingrédients.`
+      }]
+    }, {
+      headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` }
+    });
 
-    const recipe = await askGroq(caption);
-    if (recipe.error) throw recipe.error;
-
-    await incrementCount(userId);
-
-    let text = `**${recipe.title}** 👨‍🍳\n\n**L’ingrédients:**\n`;
-    recipe.ingredients.forEach(i => text += `- ${i.qty} ${i.unit} ${i.name}\n`);
-    text += `\n**Tariqa:**\n`;
-    recipe.steps.forEach((s, idx) => text += `${s}\n`);
-    text += `\n⏱️ ${recipe.time} | 🍽️ ${recipe.servings}\n`;
-    text += `\n_Nassi7a: ${recipe.notes}_\n\nB9a lik ${limit.left - 1} fabor lyoum`;
-
-    ctx.deleteMessage(msg.message_id);
-    ctx.reply(text, { parse_mode: 'Markdown' });
+    const recette = groqRes.data.choices[0].message.content;
+    await ctx.reply(recette);
+    await supabase.rpc('increment', { row_id: userId });
 
   } catch (e) {
-    ctx.deleteMessage(msg.message_id);
-    ctx.reply('Sam7ni, ma 9drtch nfhm had video 😔 Jrb video akhra fiha makla w caption wad7');
+    ctx.reply('Video s3iba chwiya 😅 Jrb wa7da khra.');
   }
 });
-// 5. KEEP ALIVE SERVER BACH RENDER YFR7
-const express = require('express');
-const app = express();
-const PORT = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('TikiTbib Bot is alive!'));
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-// 6. RUN - khlli hado f lakher kima rahom
-bot.launch();
-console.log('Bot khdam...');
-// 5. RUN
+// 7. RUN
 bot.launch();
 console.log('Bot khdam...');
 
-// 6. SUPABASE SQL - EXÉCUTÉ HADA MRA WA7DA
+// 8. SUPABASE SQL - EXÉCUTÉ HADA MRA WA7DA
 /*
 create table users (
   id bigint primary key,

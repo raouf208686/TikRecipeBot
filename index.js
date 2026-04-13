@@ -3,10 +3,10 @@ const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 
 // 1. CONFIG - BDL HAD L’VALUES
-const BOT_TOKEN = 'BOT_TOKEN_MN_BOTFATHER';
-const GROQ_API_KEY = 'GROQ_API_KEY_MN_GROQ.COM';
-const SUPABASE_URL = 'URL_TA3_SUPABASE';
-const SUPABASE_KEY = 'KEY_TA3_SUPABASE';
+const BOT_TOKEN = '8395509532:AAF07WSkCDxrf4_r1y7oxvoWMciE54bep1g';
+const GROQ_API_KEY = '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';
+const SUPABASE_URL = 'https://ahjxmqcokxnqtzkcljri.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFoanhtcWNva3hucXR6a2NsanJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwMjUwMTYsImV4cCI6MjA5MTYwMTAxNn0.szaq4Yd6EtI4OEsqdomNHR9MC1klsFI8TSlykLSZpM8';
 const DAILY_FREE_LIMIT = 3; // 3 recettes fabor par nhar
 
 const bot = new Telegraf(BOT_TOKEN);

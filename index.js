@@ -123,7 +123,16 @@ bot.on('text', async (ctx) => {
     ctx.reply('Sam7ni, ma 9drtch nfhm had video 😔 Jrb video akhra fiha makla w caption wad7');
   }
 });
+// 5. KEEP ALIVE SERVER BACH RENDER YFR7
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('TikiTbib Bot is alive!'));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
+// 6. RUN - khlli hado f lakher kima rahom
+bot.launch();
+console.log('Bot khdam...');
 // 5. RUN
 bot.launch();
 console.log('Bot khdam...');
